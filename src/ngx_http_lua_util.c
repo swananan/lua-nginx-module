@@ -49,6 +49,9 @@
 #if (NGX_THREADS)
 #include "ngx_http_lua_worker_thread.h"
 #endif
+#if (NGX_HTTP_V3)
+#include <ngx_event_quic.h>
+#endif
 
 
 #if 1
@@ -4560,5 +4563,35 @@ ngx_http_lua_ffi_bypass_if_checks(ngx_http_request_t *r)
 {
     r->disable_not_modified = 1;
 }
+
+
+#if (NGX_HTTP_V3)
+void
+ngx_http_lua_resume_quic_ssl_handshake(ngx_connection_t *c)
+{
+    ngx_int_t        rc, sslerr;
+    ngx_ssl_conn_t  *ssl_conn;
+
+    if (c == NULL || c->ssl == NULL || c->ssl->connection == NULL) {
+        return;
+    }
+
+    if (!c->udp || c->read == NULL
+        || c->read->handler != ngx_quic_input_handler)
+    {
+        return;
+    }
+
+    ssl_conn = c->ssl->connection;
+
+    rc = SSL_do_handshake(ssl_conn);
+    sslerr = SSL_get_error(ssl_conn, rc);
+
+    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, c->log, 0,
+                   "lua resuming quic ssl handshake: rc %d, err %d, will "
+                   "continue driving handshake or next lua script execution",
+                   rc, sslerr);
+}
+#endif
 
 /* vi:set ft=c ts=4 sw=4 et fdm=marker: */
